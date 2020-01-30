@@ -227,8 +227,7 @@ class EndogState(State):
 
             if np.isclose(inv, 0):
                 # if today donot have position (Neutral)
-                cost = 0.
-                mk2mkt_pnl = 0.
+                mk2mkt_pnl = cost = price = 0.
 
         return cost, pnl, _r, price, mk2mkt_pnl, inv
 

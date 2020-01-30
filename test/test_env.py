@@ -88,5 +88,6 @@ def test_state_forward(test_state):
     assert next_state[target_ccy]["inv"] == 0.
     assert abs(next_state[target_ccy]["pnl"]) > 0
     assert next_state[target_ccy]["mk2mkt_pnl"] == 0
-
+    raise
     # neutural:
+    
