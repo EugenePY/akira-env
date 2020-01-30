@@ -39,23 +39,36 @@ class Client(object):
     @gen.coroutine
     def run(self):
         while True:
-            msg = yield self.ws.read_message()
+            state = yield self.ws.read_message()
+
             if msg is None:
                 logger.info("connection closed")
                 self.ws = None
                 break
             else:
-                logger.info(msg)
+                self.guess -= 1
+                action = self.act(state) 
+                self.ws.write_message(action)
+                logger.info(state)
+    
+    def act(self, state):
+        """Action
+        """
+        return "agent: response{}".format(int(state)+1)
 
     def keep_alive(self):
         if self.ws is None:
             self.connect()
         else:
-            self.ws.write_message(json.dumps({"answer": self.guess}))
+            logger.info("connection is healthy")
+
 
 if __name__ == "__main__":
     try:
         client = Client("ws://localhost:3000", 5)
+        for i in range(10):
+            print(i)
+            client.step(i)
     except KeyboardInterrupt:
-        #print("KeyboardInterrupt")
+        print("KeyboardInterrupt")
         sys.exit()
