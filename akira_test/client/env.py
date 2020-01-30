@@ -1,6 +1,9 @@
 from .base import Env
 from ..utils.collections import PriceDeque, PriceEntry
 
+class WSClient(object):
+    def __init__(self, host, port):
+        pass
 
 class BmkEnv(Env):
     """Basic Trading Enviroment 

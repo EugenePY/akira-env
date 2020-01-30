@@ -18,16 +18,6 @@ class Action(object):
         return np.random.normal(size=len(self.variables))
 
 
-class Discrete(object):
-    # time dependent action
-    space = {"LONG": ["ADD_POSITION", "PT", "STOP_LOSS", ""],
-             "SHORT": ["ADD_POSITION", "PT", "STOP_LOSS"],
-             "NEUTRAL": ["LONG", "SHORT", "NEUTRAL"]}
-
-    def sample(self, state):
-        pass
-
-
 class State(object):
     def __init__(self, ndim):
         self._ndim = ndim

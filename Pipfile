@@ -1,0 +1,13 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+
+[packages]
+akira-api = {editable = true,path = "."}
+akira-data = {editable = true,git = "https://github.com/EugenePY/akira-data.git",ref = "master"}
+
+[requires]
+python_version = "3.7"

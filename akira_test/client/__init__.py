@@ -6,30 +6,34 @@ import sys
 from tornado.ioloop import IOLoop, PeriodicCallback
 from tornado import gen
 from tornado.websocket import websocket_connect
+from loguru import logger
+import json
 
 
 class Client(object):
     def __init__(self, url, timeout):
+
         self.url = url
         self.timeout = timeout
         self.ioloop = IOLoop.instance()
         self.ws = None
         self.connect()
+        self.guess = 87
 
-        # 每 20 秒發送一次 ping
-        PeriodicCallback(self.keep_alive, 20000, io_loop=self.ioloop).start()
+        PeriodicCallback(
+            self.keep_alive, 20000).start()
 
         self.ioloop.start()
 
     @gen.coroutine
     def connect(self):
-        print "trying to connect"
+        logger.info("trying to connect")
         try:
             self.ws = yield websocket_connect(self.url)
-        except Exception, e:
-            print "connection error"
+        except Exception:
+            logger.info("connection error")
         else:
-            print "connected"
+            logger.info("connected")
             self.run()
 
     @gen.coroutine
@@ -37,21 +41,21 @@ class Client(object):
         while True:
             msg = yield self.ws.read_message()
             if msg is None:
-                print "connection closed"
+                logger.info("connection closed")
                 self.ws = None
                 break
             else:
-                print msg
+                logger.info(msg)
 
     def keep_alive(self):
         if self.ws is None:
             self.connect()
         else:
-            self.ws.write_message("ping")
+            self.ws.write_message(json.dumps({"answer": self.guess}))
 
 if __name__ == "__main__":
     try:
-        client = Client("ws://localhost:9000", 5)
+        client = Client("ws://localhost:3000", 5)
     except KeyboardInterrupt:
         #print("KeyboardInterrupt")
         sys.exit()

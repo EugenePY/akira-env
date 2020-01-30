@@ -27,7 +27,7 @@ def arctic_testdb():
 
 
 def test_idxer():
-    from akira_api.client.base import Indexer
+    from akira_test.client.base import Indexer
 
     idxer = Indexer(list(range(100)), n_episode=4)
     while True:
@@ -39,7 +39,7 @@ def test_idxer():
 
 @pytest.fixture(scope="module")
 def test_state(arctic_testdb):
-    from akira_api.client.base import EndogState
+    from akira_test.client.base import EndogState
     from akira_data.data.web.pool import IntraDayVariablePool
     from arctic.date import DateRange
     import datetime
@@ -88,6 +88,57 @@ def test_state_forward(test_state):
     assert next_state[target_ccy]["inv"] == 0.
     assert abs(next_state[target_ccy]["pnl"]) > 0
     assert next_state[target_ccy]["mk2mkt_pnl"] == 0
-    raise
     # neutural:
     
+
+def test_strategy_test():
+    action = {"EURUSD INTRA15M Curncy": 1} # aloways long
+    pass
+
+
+def test_remote_testing():
+    host_name = "localhost"
+    endog_symbol = ["EURUSD INTRA15M Curncy"]
+    exog_symbol = ["GBPUSD INTRA15M Curncy"]
+
+    # BMK is simple Envirment, that using lag 1 information
+    naive_action = {"EURUSD INTRA15M Curncy": 1}
+
+    with BMK(host=host_name, port=4000, 
+        endog_symbol=endog_symbol, exog_symbol=exog_symbol) as env: 
+        
+        while _:
+            state, info, done = env.step(naive_action)
+
+            act = {endog_symbol[0]: naive_action.get(state, 1)}
+
+    results = env.result()
+    
+ def test_local_testing():
+    host_name = "localhost"
+    endog_symbol = ["EURUSD INTRA15M Curncy"]
+    exog_symbol = ["GBPUSD INTRA15M Curncy"]
+
+    # BMK is simple Envirment, that using lag 1 information
+    naive_action = {"EURUSD INTRA15M Curncy": 1}
+
+    with BMK(host=host_name, port=4000, 
+        endog_symbol=endog_symbol, exog_symbol=exog_symbol, 
+        mode="local") as env: 
+        
+        while _:
+            state, info, done = env.step(naive_action)
+
+            act = {endog_symbol[0]: naive_action.get(state, 1)}
+
+    results = env.result()
+    
+    
+
+
+
+    
+
+
+
+            
