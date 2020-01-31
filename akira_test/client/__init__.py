@@ -4,71 +4,77 @@
 import sys
 
 from tornado.ioloop import IOLoop, PeriodicCallback
-from tornado import gen
 from tornado.websocket import websocket_connect
+from tornado import gen
 from loguru import logger
 import json
+import uuid
+import asyncio
 
+def add_callback():
+    pass
 
-class Client(object):
-    def __init__(self, url, timeout):
-
-        self.url = url
-        self.timeout = timeout
-        self.ioloop = IOLoop.instance()
+class EnvSession(object):
+    def __init__(self, env_id, host, port):
+        self.env_id = env_id
+        self.host = host
+        self.port = port
+        self.endpoint = "ws://{host}:{port}".format(
+                host=host, port=port, env_id=env_id)
         self.ws = None
-        self.connect()
         self.guess = 87
 
-        PeriodicCallback(
-            self.keep_alive, 20000).start()
+    def __enter__(self):
+        self.ioloop = IOLoop.instance()
+        return self
+   
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.ioloop.spawn_callback(self.keep_alive)
 
-        self.ioloop.start()
-
-    @gen.coroutine
-    def connect(self):
-        logger.info("trying to connect")
         try:
-            self.ws = yield websocket_connect(self.url)
+            self.ioloop.start()
+        except KeyboardInterrupt:
+            logger.info("KeyboardInterrupt")
+            self.ioloop.stop()
+            sys.exit()
+
+    def connect(self):
+        logger.info("trying to connect: {endpoint}".format(
+            endpoint=self.endpoint))
+        try:
+            self.ws = websocket_connect(self.endpoint)
         except Exception:
             logger.info("connection error")
         else:
             logger.info("connected")
-            self.run()
 
-    @gen.coroutine
-    def run(self):
+    async def keep_alive(self):
         while True:
-            state = yield self.ws.read_message()
-
-            if msg is None:
-                logger.info("connection closed")
-                self.ws = None
-                break
+            if self.ws is None:
+                await self.connect()
             else:
-                self.guess -= 1
-                action = self.act(state) 
-                self.ws.write_message(action)
-                logger.info(state)
-    
-    def act(self, state):
-        """Action
-        """
-        return "agent: response{}".format(int(state)+1)
+                logger.info("connection is healthy")
+            await gen.sleep(5)
 
-    def keep_alive(self):
-        if self.ws is None:
-            self.connect()
-        else:
-            logger.info("connection is healthy")
+    def step(self, action):
+        self.guess -= 1
+        logger.info(action)
+        return self.ws.write_message(action)
+
+    def reset(self):
+        self.connect()
+        msg = self.ws.read_message()
+        logger.info(msg)
+        return msg
 
 
 if __name__ == "__main__":
     try:
-        client = Client("ws://localhost:3000", 5)
-        for i in range(10):
-            print(i)
-            client.step(i)
-    except KeyboardInterrupt:
+        async def test_testing():
+            env = EnvSession(host="localhost", port=3000, env_id="bmk") 
+            async with env:
+                info = await env.reset()
+                logger.info(info)
+    except KeyboardInterrupt as e:
         print("KeyboardInterrupt")
         sys.exit()

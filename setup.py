@@ -15,5 +15,5 @@ setup(
     install_requires=requires,
     packages=find_packages(exclude='test'),
     dependency_links=[
-        "git+https://github.com/EugenePY/akira-data.git@master#egg=akira_data"],
+        "git+https://github.com/EugenePY/akira-data.git@master#egg=akira-data"],
     )

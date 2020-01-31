@@ -1,1 +1,3 @@
-akira_data
+akira-data
+marshmallow-sqlalchemy
+tornado
