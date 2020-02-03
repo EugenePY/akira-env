@@ -16,7 +16,6 @@ define("port", default=3000, help="run on the given port", type=int)
 class Application(tornado.web.Application):
     def __init__(self):
         handlers = [(r"/backtest/(?P<env_id>.*)", EnvTestHandler),
-                    (r"/spec/(?P<env_id>.*)", EnvTestHandler),
                     (r"/", IndexHandler)]
         settings = dict(debug=True)
         tornado.web.Application.__init__(

@@ -1,16 +1,23 @@
 import tornado
 import json
 from loguru import logger
+from akira_test.models.env import PluginCollection
 
 
 class EnvTestHandler(tornado.websocket.WebSocketHandler):
     clients_space = {}
 
     def open(self, env_id):
+        args = self.request.arguments
+
+        print(str(args["data"][0]))
+        args = json.loads(args["data"][0])
         logger.info("A client connected.")
-        logger.info("env_id={}".format(env_id))
+        logger.info("env_id={}, args={}".format(env_id, args))
+        PluginCollection()  # reload
         # checking requeset env_id
-        EnvTestHandler.clients_space[self] = {}
+        EnvTestHandler.clients_space[self] = {
+            "env": PluginCollection.get_env(env_id)(**args)}
 
     def on_close(self):
         if hasattr(self, "close_type"):
@@ -20,44 +27,31 @@ class EnvTestHandler(tornado.websocket.WebSocketHandler):
 
         # dumping the session
         resource = EnvTestHandler.clients_space.pop(self)
-        self._dump_resource(resource)
+        self.dump_resource(resource)
 
-    def _dump_resource(self, resource):
-        logger.info("dumpping: Env={}".format(str(resource)))
+    def dump_resource(self, resource):
+        env = resource["env"]
 
     def on_message(self, message):
         # check env_id
-        logger.info("Request:{}".format(message))
+        logger.debug("receive:{}".format(message))
 
-        if message == "reset":
-            EnvTestHandler.clients_space[self] = {"guess": 0}
-            self.write_message({"guess": 0, "done": False})
+        input_ = json.loads(message)
 
-        elif message == "cleanup":
-            self.close_type = "normal"
+        fn = input_["fn"]
+        kwargs = input_["args"]
+        try:
+            out = getattr(EnvTestHandler.clients_space[self]["env"],
+                          fn)(**kwargs)
 
+        except Exception as e:
+            logger.info(e)
+
+        if hasattr(out, "dump"):
+            out = out.dumps()
         else:
-            answer = json.loads(message)
-            logger.info("Client Answer: {}".format(answer["answer"]))
-
-            ans = answer["answer"]
-            response = {}
-            if ans != 1:
-                response.update({"correct": False})
-            else:
-                response.update({"correct": True})
-
-            # update client space
-            EnvTestHandler.clients_space[self]["guess"] += 1
-            guess_count = EnvTestHandler.clients_space[self]["guess"]
-            logger.info(EnvTestHandler.clients_space)
-            response["num_guess"] = guess_count
-
-            if guess_count >= 30 or response["correct"]:
-                response["done"] = True
-            else:
-                response["done"] = False
-            self.write_message(json.dumps(response))
+            out = json.dumps(out)
+        self.write_message(out)
 
 
 class EnvSpecHandler(tornado.web.RequestHandler):

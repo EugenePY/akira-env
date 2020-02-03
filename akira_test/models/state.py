@@ -58,7 +58,7 @@ class StateStack(object):
         return out
 
 
-class State(object):
+class BaseState(object):
     """Position: Stack of Actions
     """
     mongo_uri = os.environ.get("MONGO_URI", "localhost")
@@ -215,7 +215,7 @@ class State(object):
         return data
 
 
-class DiscreteState(State):
+class DiscreteState(BaseState):
     # only take discrete action
     # last_state
     operation = {"LONG": ["ADD", "OFFSET", "TURN"],

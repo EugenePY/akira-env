@@ -12,14 +12,17 @@ class BasketEnv(BaseEnv):
     Reward:
         Risk Adjusted Reward, Sharpe Ratio
     """
+
     env_id = "basket"
 
-    def __init__(self, exog_state, action_space):
-        self._exog_space = exog_state
+    def __init__(self, state, action_space):
+        self._state_space = state
         self._action_space = action_space
-
         self._data = self._exog_space.fetch(
             date_range[0], date_range[1])
+
+    def spec(self):
+        return {"info": {}, "endog": list(self.state)}
 
     def reset(self):
         pass
@@ -28,9 +31,4 @@ class BasketEnv(BaseEnv):
         pass
 
     def reward(self, endog_state, action):
-        pass
-
-    def report(self):
-        """ Exog Variable, Endog Variable, Action
-        """
         pass

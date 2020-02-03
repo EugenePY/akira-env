@@ -1,3 +1,4 @@
 akira-data
+sqlalchemy_jsonfield
 marshmallow-sqlalchemy
 tornado

@@ -6,6 +6,8 @@ import datetime
 import pandas as pd
 import os
 import tornado
+from mock import patch
+from loguru import logger
 
 
 @pytest.fixture(scope="module")
@@ -93,4 +95,40 @@ def test_state_forward(test_state):
     assert next_state[target_ccy]["inv"] == 0.
     assert abs(next_state[target_ccy]["pnl"]) > 0
     assert next_state[target_ccy]["mk2mkt_pnl"] == 0
-    # neutural:
+
+
+@pytest.fixture
+def plugins():
+    from akira_test.models.env import PluginCollection
+    PluginCollection()  # reload
+    return PluginCollection.plugins
+
+
+def test_serilization(plugins):
+    data = {
+        "guess_num": {'answer': 1, 'max_num_guess': 5, 'guess_record': [],
+                      'env_id': 'guess_num'}}
+
+    for k, v in plugins.items():
+        if k == "guess_num":
+            env = v.deserialize_env(data[k])
+            d = v.serilized_env(env)
+            assert d == data[k]
+
+
+def test_step(plugins):
+    for k, v in plugins.items():
+        if k == "guess_num":
+            env = v(answer=1, max_num_guess=5)
+            for _ in range(5):
+                info = env.reset()
+                logger.info(info)
+                while True:
+                    state = env.step(2)
+                    logger.info(state)
+                    if state["done"]:
+                        break
+                data = v.serilized_env(env)
+                logger.info(data)
+        elif k == "basket":
+            pass

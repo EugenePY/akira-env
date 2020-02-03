@@ -10,6 +10,7 @@ engine = sa.create_engine("sqlite:///:memory:")
 session = scoped_session(sessionmaker(bind=engine))
 Base.metadata.create_all(engine)
 
+
 @pytest.fixture
 def exp_data():
     exp_data = {"env": "basket",

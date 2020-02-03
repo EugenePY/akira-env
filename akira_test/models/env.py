@@ -7,58 +7,61 @@ from loguru import logger
 from marshmallow import post_load, pre_dump
 from marshmallow_sqlalchemy import ModelSchema
 from sqlalchemy.orm import backref, relationship
-
+import sqlalchemy_jsonfield
+import json
 from .base import Base
 
 
 class BaseEnv(metaclass=abc.ABCMeta):
-    def __init__(self, action_space, generator=None, info=None):
-        self.action_space = action_space
 
+    def __spec__(self):
+        return {}
+
+    @abc.abstractmethod
     def reset(self):
-        info = self.info.reset()
-        obs = self.state.reset()
-        return obs, info
-
-    def step(self, action):
-        datetime = self.state.current_state
-        info = self.info.step(t)
-        # calculate reward
-        reward = self.reward(self.endog.state, action)
-        # state forward
-        state, last_state = self.endog.step(action)
-
-        return reward, state, done, info
-
-    def reward(self, state):
         pass
 
-    def get_experiments(self, start, end):
+    @abc.abstractmethod
+    def step(self, action, **kwargs):
+        pass
+
+    @abc.abstractclassmethod
+    def serilized_env(cls, env):
+        pass
+
+    @abc.abstractclassmethod
+    def deserialize_env(cls, env_data):
         pass
 
 
-class PluginCollection(object):
+class PluginCollection:
     """Upon creation, this class will read the plugins package for modules
     that contain a class definition that is inheriting from the Plugin class
     """
 
-    def __init__(self, plugin_package):
-        """Constructor that initiates the reading of all available plugins
-        when an instance of the PluginCollection object is created
-        """
-        self.plugin_package = plugin_package
-        self.reload_plugins()
+    plugin_package = ["akira_test.envs"]
 
-    def reload_plugins(self):
+    def __new__(cls):
+        cls.reload_plugins()
+
+    @classmethod
+    def get_env(cls, key):
+        return cls.plugins[key]
+
+    @classmethod
+    def reload_plugins(cls):
         """Reset the list of all plugins and initiate the walk over the main
         provided plugin package to load all available plugins
         """
-        self.plugins = {}
-        self.seen_paths = []
-        logger.info(f'Looking for plugins under package {self.plugin_package}')
-        self.walk_package(self.plugin_package)
+        cls.plugins = {}
+        cls.seen_paths = []
+        logger.info(f'Looking for plugins under package {cls.plugin_package}')
 
-    def walk_package(self, package):
+        for path in cls.plugin_package:
+            cls.walk_package(path)
+
+    @classmethod
+    def walk_package(cls, package):
         """Recursively walk the supplied package to retrieve all plugins
         """
         imported_package = __import__(package, fromlist=['blah'])
@@ -73,32 +76,15 @@ class PluginCollection(object):
                     if issubclass(c, BaseEnv) & (c is not BaseEnv):
                         logger.info(
                             f'    Found plugin class: {c.__module__}.{c.__name__}')
-                        self.plugins[getattr(
+                        cls.plugins[getattr(
                             c, "env_id", c.__name__.lower())] = c
 
 
+# record the experiment entry
 class Experiment(Base):
     __tablename__ = "experiment"
     id = sa.Column(sa.Integer, primary_key=True)
     env = sa.Column(sa.String)
     owner = sa.Column(sa.String)
     model = sa.Column(sa.String)
-    _try_number = sa.Column('try_number', sa.Integer, default=0)
-
-
-class ExperimentSchema(ModelSchema):
-    class Meta:
-        model = Experiment
-
-    @post_load
-    def load_envs(self, data, **kwargs):
-        env_id = data["env"]
-        collection = PluginCollection("akira_test.envs")
-        data["env"] = collection.plugins[env_id]
-        return data
-
-    @pre_dump
-    def dump_env(self, data, **kwargs):
-        if issubclass(getattr(data, "env", None), BaseEnv):
-            data.env = data.env.env_id
-        return data
+    data = sa.Column(sqlalchemy_jsonfield.JSONField(json=json), nullable=False)

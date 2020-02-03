@@ -7,6 +7,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref
 class BaseActionSpace(object):
     """Define Action Rules
     """
+    action_id = "simple"
 
     def sample(self):
         amounts = np.random.normal(size=len(self.variables))
@@ -16,14 +17,8 @@ class BaseActionSpace(object):
                   self.__class__.__name__)
         return trades
 
-    def valid(self):
-        pass
 
-    @property
-    def action_id(self):
-        self._action_id = "simple"
-
-
+# For deploy usuage
 class Trade(Base):
     exp_id = relationship("Experiment", backref=backref("experiment"))
     model = sa.Column(sa.String)
