@@ -8,7 +8,7 @@ with open(Path(os.path.dirname(__file__))/"requirements.txt", "r") as f:
     requires = [line.strip() for line in f]
 
 setup(
-    name="akira-api",
+    name="akira-test",
     author="eugenepy",
     author_email="tn00372136@gmail.com",
     python_requires='>=3.5',

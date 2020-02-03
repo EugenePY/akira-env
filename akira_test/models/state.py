@@ -1,39 +1,10 @@
+import numpy as np
 import abc
 import os
 import numpy as np
 from arctic import Arctic
 import pandas as pd
 from loguru import logger
-
-
-class Action(object):
-
-    def __setitem__(self, key, value):
-        setattr(self, key, value)
-
-    def __getitem__(self, key):
-        return getattr(self, key, 0)
-
-    def sample(self):
-        return np.random.normal(size=len(self.variables))
-
-
-class State(object):
-    def __init__(self, ndim):
-        self._ndim = ndim
-
-    def sample(self):
-        return np.random.random(size=self._ndim)
-
-    def fetch(self, date_range):
-        # fetch data from mongo server
-        data = {}
-        lib = self.store.get_library(self.libname)
-        for symbol in self.symbols:
-            data[symbol] = lib.read(
-                symbol, date_range=date_range).data
-        data = pd.concat(data, axis=1)
-        return data
 
 
 class Indexer:
@@ -87,13 +58,15 @@ class StateStack(object):
         return out
 
 
-class EndogState(State):
+class State(object):
     """Position: Stack of Actions
     """
     mongo_uri = os.environ.get("MONGO_URI", "localhost")
     store = Arctic(mongo_uri)
 
-    def __init__(self, variables, date_range, n_episode, libname, generator=None):
+    def __init__(self, variables, date_range, n_episode, libname, info=None,
+                 generator=None):
+
         self.variables = variables
         self.symbols = [var.symbol for var in self.variables]
         self.libname = libname
@@ -106,14 +79,17 @@ class EndogState(State):
             ids=["timestep", "symbol"])
 
         if generator is None:
-            self.generator = Indexer(self.data.index, n_episode=n_episode)
+            generator = Indexer(self.data.index, n_episode=n_episode)
 
         else:
             if not issubclass(type(generator), Indexer):
                 raise ValueError("gernerator should be subclass of {}. Got {}.".format(
                     type(Indexer), type(generator)))
 
-            self.generator = generator
+        self.generator = generator
+
+        if info is None:
+            self.info = {}
 
         self.reset()
 
@@ -128,7 +104,6 @@ class EndogState(State):
 
         for symbol in self.symbols:
             price = prices[symbol]
-
             entry_last = self.episode_stack.query(
                 tuple([timestep_last, symbol]))
             if not pd.isnull(price):
@@ -229,51 +204,20 @@ class EndogState(State):
     def state_last(self):
         return self.episode_stack.get_offset(offset=2)
 
-
-class ExogState(EndogState):
-    # Other information beside position
-    def reset(self):
-        self.episode_stack.reset()
-        self.generator.reset()
-
-        data = self.data.loc[:self.generator.seq[0]].shift(
-            1)  # delayed information
-        state = self.episode_stack[-1]
-        return state, data
-
-    def step(self):  # which cannot controll directly
-        timestamp = next(self.generator)
-        return data[timestamp]
+    def fetch(self, date_range):
+        # fetch data from mongo server
+        data = {}
+        lib = self.store.get_library(self.libname)
+        for symbol in self.symbols:
+            data[symbol] = lib.read(
+                symbol, date_range=date_range).data
+        data = pd.concat(data, axis=1)
+        return data
 
 
-class Env(metaclass=abc.ABCMeta):
-
-    def info(self):
-        """exog variable: source of information
-        """
-        pass
-
-    def endog(self):
-        pass
-
-    @abc.abstractmethod
-    def reset(self):
-        info = self.info.reset()
-        obs = self.endog.reset()
-        self.last_obs = obs
-        self.timestep = 0
-        return obs, info
-
-    def last_obs(self):
-        pass
-
-    def step(self, action):
-        info = self.info.step(t)
-
-        # calculate reward
-        reward = self.reward(self.endog.state, action)
-
-        # state forward
-        state, last_state = self.endog.step(action)
-
-        return reward, state, done, info
+class DiscreteState(State):
+    # only take discrete action
+    # last_state
+    operation = {"LONG": ["ADD", "OFFSET", "TURN"],
+                 "SHORT": ["ADD", "OFFSET", "TURN"],
+                 "NEUTRAL": ["LONG", "SHORT", "NEUTRAL"]}

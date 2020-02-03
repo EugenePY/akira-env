@@ -1,80 +1,92 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
 import sys
-
-from tornado.ioloop import IOLoop, PeriodicCallback
 from tornado.websocket import websocket_connect
-from tornado import gen
 from loguru import logger
 import json
 import uuid
+import time
 import asyncio
 
-def add_callback():
-    pass
 
-class EnvSession(object):
-    def __init__(self, env_id, host, port):
-        self.env_id = env_id
+class BackTestingSession(object):
+    def __init__(self, env_id, host, port, retry=3):
         self.host = host
         self.port = port
-        self.endpoint = "ws://{host}:{port}".format(
-                host=host, port=port, env_id=env_id)
+        self.endpoint = "ws://{host}:{port}/backtest/{env_id}".format(
+            host=host, port=port, env_id=env_id)
+        self.mode = "test"
         self.ws = None
-        self.guess = 87
 
-    def __enter__(self):
-        self.ioloop = IOLoop.instance()
+        # msci
+        self.retry = retry
+
+    async def __aenter__(self):
+        await self.connect()
         return self
-   
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.ioloop.spawn_callback(self.keep_alive)
 
-        try:
-            self.ioloop.start()
-        except KeyboardInterrupt:
-            logger.info("KeyboardInterrupt")
-            self.ioloop.stop()
-            sys.exit()
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is None:
+            logger.info("Back Test Complete")
+            logger.info("=========== AKIRA-Testing END =========")
+            self.ws.write_message("cleanup")
 
-    def connect(self):
-        logger.info("trying to connect: {endpoint}".format(
-            endpoint=self.endpoint))
-        try:
-            self.ws = websocket_connect(self.endpoint)
-        except Exception:
-            logger.info("connection error")
-        else:
-            logger.info("connected")
-
-    async def keep_alive(self):
+    async def connect(self):
+        logger.info("============= AKIRA-Testing ============")
+        logger.info("trying to connect: {endpoint}. In {mode} Mode".format(
+            endpoint=self.endpoint, mode=self.mode))
+        # retry times
+        n = 0
         while True:
-            if self.ws is None:
-                await self.connect()
+            try:
+                self.ws = await websocket_connect(self.endpoint)
+            except Exception:
+                logger.debug("connection error")
+                time.sleep(3)
+                n += 1
+                if n >= self.retry:
+                    raise ValueError("Not connection")
             else:
-                logger.info("connection is healthy")
-            await gen.sleep(5)
+                logger.debug("connected")
+                break
 
-    def step(self, action):
-        self.guess -= 1
-        logger.info(action)
-        return self.ws.write_message(action)
-
-    def reset(self):
-        self.connect()
-        msg = self.ws.read_message()
-        logger.info(msg)
+    async def step(self, action):
+        logger.debug("Sending Action:{}".format(action))
+        await self.ws.write_message(json.dumps(action))
+        msg = await self.ws.read_message()
+        msg = json.loads(msg)
         return msg
+
+    async def reset(self):
+        await self.ws.write_message("reset")
+        msg = await self.ws.read_message()
+        logger.debug("Reset got: data={}".format(msg))
+        return msg
+
+    def set_mode(self, mode="develop"):
+        self.mode = mode
+        return self
 
 
 if __name__ == "__main__":
-    try:
-        async def test_testing():
-            env = EnvSession(host="localhost", port=3000, env_id="bmk") 
-            async with env:
-                info = await env.reset()
-                logger.info(info)
-    except KeyboardInterrupt as e:
-        print("KeyboardInterrupt")
-        sys.exit()
+    def test():
+        try:
+            testing = BackTestingSession(
+                host='localhost', port=3000, env_id="bmk")
+
+            async def backtesting():
+                act = {"answer": 1}
+                async with testing.set_mode("develop") as env:  # connect
+                    info = await env.reset()  # this request initial dataset for you
+                    logger.info(info)
+                    while True:
+                        msg = await env.step(act)
+                        logger.info(msg)
+                        if msg["done"]:
+                            break
+                    return info
+
+            info = asyncio.get_event_loop().run_until_complete(backtesting())
+        except KeyboardInterrupt as e:
+            print("KeyboardInterrupt")
+            sys.exit()
+    test()

@@ -1,6 +1,7 @@
-# AKIRA-API: Algo Testing Framework
+# AKIRA-API: Algo Testing&Deploy Framework
 
 # Database
+
 SQL
 
 # Deploy
@@ -20,4 +21,5 @@ trading record submit
 1. Enviroment, client side
 trading_time:
     information cut-time
+
 execution price:
