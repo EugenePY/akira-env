@@ -5,15 +5,12 @@ import pkgutil
 import sqlalchemy as sa
 from loguru import logger
 from marshmallow import post_load, pre_dump
-from marshmallow_sqlalchemy import ModelSchema
-from sqlalchemy.orm import backref, relationship
-import sqlalchemy_jsonfield
 import json
-from .base import Base
-
+import marshmallow as me
+from marshmallow import Schema, fields
 
 class BaseEnv(metaclass=abc.ABCMeta):
-
+    
     def __spec__(self):
         return {}
 
@@ -26,7 +23,7 @@ class BaseEnv(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractclassmethod
-    def serilized_env(cls, env):
+    def serialize_env(cls, env):
         pass
 
     @abc.abstractclassmethod
@@ -81,10 +78,13 @@ class PluginCollection:
 
 
 # record the experiment entry
-class Experiment(Base):
+class Episode(object):
     __tablename__ = "experiment"
-    id = sa.Column(sa.Integer, primary_key=True)
-    env = sa.Column(sa.String)
-    owner = sa.Column(sa.String)
-    model = sa.Column(sa.String)
-    data = sa.Column(sqlalchemy_jsonfield.JSONField(json=json), nullable=False)
+    id = None
+    env = None
+    owner = None
+    model = None
+    # user space
+    data = None
+    meta = None
+

@@ -1,23 +1,33 @@
-import numpy as np
-import abc
 import os
-import numpy as np
-from arctic import Arctic
+
+import marshmallow as ma
 import pandas as pd
-from loguru import logger
+from arctic import Arctic
+from arctic.date import DateRange
+import numpy as np
+
+from ..models.actions import BaseActionSpace
+from ..models.env import BaseEnv
+from ..models.state import BaseState
+from ..serialization import Model
+from . import collect_input_output
 
 
 class Indexer:
     idx_id = "base"
 
     def __init__(self, idx, n_episode):
+        assert n_episode > 0
         self.idx = idx
         self.n_episode = n_episode
         self.reset()
 
     def __next__(self):
         self.step += 1
-        val = self.seq[self.step]
+        try:
+            val = self.seq[self.step]
+        except IndexError:
+            raise IndexError("Out of Index")
         return val
 
     def reset(self):
@@ -33,14 +43,17 @@ class Indexer:
                              " positive Interger. Got {}.".format(offset))
         return self.seq[self.step-offset]
 
+    def last(self):
+        return self.step == self.n_episode - 1
+
 
 class StateStack(object):
-    id = "base"
 
     def __init__(self, ids, columns):
         self.__id__ = ids
         self.__columns__ = columns
         self.reset()
+
         self.empty = {i: 0 for i in self.__columns__}
 
     def add(self, entry):
@@ -61,21 +74,31 @@ class StateStack(object):
         return out
 
 
-class BaseState(object):
-    """Position: Stack of Actions
-    """
-    mongo_uri = os.environ.get("MONGO_URI", "localhost")
-    store = Arctic(mongo_uri)
+class TradingEnvSchema(ma.Schema):
+    variables = ma.fields.List(ma.fields.Str)
+    start = ma.fields.DateTime()
+    end = ma.fields.DateTime()
+    n_episode = ma.fields.Integer()
+    info = ma.fields.List(ma.fields.Str, nullable=True)
+    genertor = ma.fields.Str(nullable=True)
 
-    def __init__(self, variables, date_range, n_episode, libname, info=None,
+
+class TradingEnv(BaseEnv):
+    env_id = "trading"
+    schema = TradingEnvSchema
+
+    def __init__(self, symbols, start, end, n_episode, libname, info=None,
                  generator=None):
+        self.symbols = symbols
 
-        self.variables = variables
-        self.symbols = [var.symbol for var in self.variables]
+        # database
+        mongo_uri = os.environ.get("MONGO_URI", "localhost")
+        self.store = Arctic(mongo_uri)
         self.libname = libname
-
+        date_range = DateRange(start=start, end=end)
         self.data = self.fetch(date_range)
 
+        # prepare stacks
         self.episode_stack = StateStack(
             columns=["price", "cost",
                      "inv", "pnl", "return", "act", "mk2mkt_pnl"],
@@ -101,10 +124,22 @@ class BaseState(object):
         self.episode_stack.reset()
 
     def step(self, action, nan_check=False):
+
         timestep = next(self.generator)
         timestep_last = self.generator.get_offset(offset=1)
-        prices = self.data.loc[timestep].loc[(slice(None), "PX_OPEN")]
+        out = {"done": False}
 
+        if self.generator.last():
+            # Terminal Condtion met.
+            action = {}
+            for sym in self.symbols:
+                entry_last = self.episode_stack.query(
+                    tuple([timestep_last, sym]))
+                action[sym] = - entry_last["inv"]
+            out["done"] = True
+
+        prices = self.data.loc[timestep].loc[(slice(None), "PX_OPEN")]
+        r = 0
         for symbol in self.symbols:
             price = prices[symbol]
             entry_last = self.episode_stack.query(
@@ -128,10 +163,15 @@ class BaseState(object):
             if nan_check:
                 if any(pd.isnull(list(entry.values()))):
                     raise ValueError("Value contains nan")
-
+            _r = entry["return"] + entry["mk2mkt_pnl"]
+            r += _r
             self.episode_stack.add(entry)
+            out[symbol] = {"reward": _r,
+                           "inv": entry["inv"]}
 
-        return self.episode_stack[timestep]
+        out["reward"] = r
+        out["info"] = {}
+        return out
 
     def _cost_and_position(self, cost_last, inv_last, price, act):
         # State Action Map,
@@ -217,10 +257,10 @@ class BaseState(object):
         data = pd.concat(data, axis=1)
         return data
 
+    @classmethod
+    def serialize_env(cls, env):
+        return cls.schema().dump(env)
 
-class DiscreteState(BaseState):
-    # only take discrete action
-    # last_state
-    operation = {"LONG": ["ADD", "OFFSET", "TURN"],
-                 "SHORT": ["ADD", "OFFSET", "TURN"],
-                 "NEUTRAL": ["LONG", "SHORT", "NEUTRAL"]}
+    @classmethod
+    def deserialize_env(cls, data):
+        return cls(**data)

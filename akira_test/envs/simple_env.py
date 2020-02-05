@@ -1,23 +1,13 @@
 from ..models.env import BaseEnv
 import numpy as np
-
-
-def collect_input_output(fn):
-    def wrapper_fn(self, *arg, **kwarg):
-        out = fn(self, *arg, **kwarg)
-        self.guess_record.append(
-            {"fn_call": fn.__name__,
-             "input": [arg, kwarg],
-             "observation": out}
-        )
-        return out
-    return wrapper_fn
+from . import collect_input_output
+from ..models.actions import BaseActionSpace
 
 
 class SimpleGuessingEnv(BaseEnv):
     env_id = "guess_num"
     guess_record = []
-    __init_arg__ = ("answer", "max_num_guess")
+    __init_arg__ = ("max_num_guess", )
     __data_arg__ = ("guess_record", "env_id")
 
     def __init__(self, max_num_guess=5, random_max=100):
@@ -59,7 +49,7 @@ class SimpleGuessingEnv(BaseEnv):
         self.num_guess += 1
 
     @classmethod
-    def serilized_env(cls, env):
+    def serialize_env(cls, env):
         data = {}
         for k in cls.__init_arg__:
             data[k] = getattr(env, k)

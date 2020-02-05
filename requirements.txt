@@ -1,4 +1,4 @@
 akira-data
-sqlalchemy_jsonfield
-marshmallow-sqlalchemy
+nest_asyncio
+motor
 tornado

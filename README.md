@@ -1,8 +1,6 @@
-# AKIRA-API: Algo Testing&Deploy Framework
+# AKIRA-TEST: Algo Testing & Deploy Framework
 
-# Database
-
-SQL
+1. Trading En
 
 # Deploy
 

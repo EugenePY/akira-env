@@ -1,35 +1,25 @@
 import numpy as np
-from .base import Base
-import sqlachemy as sa
-from sqlalchemy.orm import scoped_session, sessionmaker, relationship, backref
+from .state import BaseState
 
 
 class BaseActionSpace(object):
     """Define Action Rules
     """
     action_id = "simple"
+    _state = None
 
     def sample(self):
         amounts = np.random.normal(size=len(self.variables))
-        trades = []
+        trades = {}
         for amount, symbol in zip(amounts, self.variables.keys()):
-            Trade(symbol=symbol, amount=amount,
-                  self.__class__.__name__)
+            trades[symbol] = amount
         return trades
 
+    @property
+    def state(self):
+        return self._state
 
-# For deploy usuage
-class Trade(Base):
-    exp_id = relationship("Experiment", backref=backref("experiment"))
-    model = sa.Column(sa.String)
-    action_space = sa.Column(sa.String)
-    symbol = sa.Column(sa.String)
-    amount = sa.Column(sa.Interger)
-    datetime = sa.Column(sa.Utcdatetime)
-
-    def __repr__(self):
-        return "< Trades: symbol = {symbol}, amount = {amount},\
-            action_space = {action_space} >".format(
-            symbol=self.symbol, amount=self.amount,
-            action_space=self.action_space
-        )
+    @state.setter
+    def set_state(self, state):
+        # check state
+        self._state = state

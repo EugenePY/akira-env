@@ -40,31 +40,7 @@ def test_idxer():
             break
 
 
-@pytest.fixture(scope="module")
-def test_state(arctic_testdb):
-    from akira_test.models.state import BaseState
-    from akira_data.data.web.pool import IntraDayVariablePool
-    from arctic.date import DateRange
-    import datetime
-
-    seed = 1990
-    np.random.seed(seed=seed)
-    pool = IntraDayVariablePool()
-
-    date_range = DateRange(start=datetime.datetime(
-        2020, 1, 1), end=datetime.datetime(2020, 1, 20))
-    symbols = [var.symbol for var in pool.variables.values()]
-
-    endog_state = BaseState(
-        variables=list(pool.variables.values()),
-        date_range=date_range, n_episode=100, libname="test")
-
-    action = {sym: np.random.normal() for sym in symbols}
-    state = endog_state.step(action)
-    return state, endog_state
-
-
-def test_state_forward(test_state):
+def state_forward(test_state):
     state, endog_state = test_state
     date = [datetime.datetime(2020, 1, 19), datetime.datetime(2020, 1, 20)]
     data = {'USDCAD INTRA15M Curncy': {'price': 1.3066999912262, 'cost': 1.3066999912262, 'inv': -0.1458415958734349, 'pnl': 0.0, 'return': 0.0, 'act': -0.1458415958734349, 'mk2mkt_pnl': 0.0},
@@ -78,20 +54,17 @@ def test_state_forward(test_state):
             'NZDUSD INTRA15M Curncy': {'price': 0.66135001182556, 'cost': 0.66135001182556, 'inv': 1.4872013631411893, 'pnl': 0.0, 'return': 0.0, 'act': 1.4872013631411893, 'mk2mkt_pnl': 0.0},
             'GBPUSD INTRA15M Curncy': {'price': 1.2990499734879, 'cost': 1.2990499734879, 'inv': 2.124826480551996, 'pnl': 0.0, 'return': 0.0, 'act': 2.124826480551996, 'mk2mkt_pnl': 0.0},
             'EURUSD INTRA15M Curncy': {'price': 1.1112999916077, 'cost': 1.1112999916077, 'inv': 1.2986442733329484, 'pnl': 0.0, 'return': 0.0, 'act': 1.2986442733329484, 'mk2mkt_pnl': 0.0}}
-    print(state)
     assert data == state
     target_ccy = 'USDCAD INTRA15M Curncy'
 
     # under Short: add position
     action = {target_ccy: data[target_ccy]["inv"]}
     next_state = endog_state.step(action)
-    print(next_state[target_ccy])
     assert next_state[target_ccy]["inv"] == data[target_ccy]["inv"] * 2
 
     # under Short: offset all
     action = {target_ccy: -next_state[target_ccy]["inv"]}
     next_state = endog_state.step(action)
-    print(next_state)
     assert next_state[target_ccy]["inv"] == 0.
     assert abs(next_state[target_ccy]["pnl"]) > 0
     assert next_state[target_ccy]["mk2mkt_pnl"] == 0
@@ -106,29 +79,71 @@ def plugins():
 
 def test_serilization(plugins):
     data = {
-        "guess_num": {'answer': 1, 'max_num_guess': 5, 'guess_record': [],
+        "guess_num": {'max_num_guess': 5, 'guess_record': [],
                       'env_id': 'guess_num'}}
 
     for k, v in plugins.items():
         if k == "guess_num":
             env = v.deserialize_env(data[k])
-            d = v.serilized_env(env)
+            d = v.serialize_env(env)
             assert d == data[k]
 
 
 def test_step(plugins):
     for k, v in plugins.items():
         if k == "guess_num":
-            env = v(answer=1, max_num_guess=5)
+            env = v(max_num_guess=5)
             for _ in range(5):
                 info = env.reset()
                 logger.info(info)
                 while True:
-                    state = env.step(2)
+                    state = env.step(
+                        action={"answer": 2})
                     logger.info(state)
                     if state["done"]:
                         break
-                data = v.serilized_env(env)
+                data = v.serialize_env(env)
                 logger.info(data)
-        elif k == "basket":
-            pass
+
+
+@pytest.fixture
+def env(arctic_testdb):
+    from akira_test.envs.trading import TradingEnv
+    from akira_data.data.web.pool import IntraDayVariablePool
+    from arctic.date import DateRange
+    import datetime
+
+    seed = 1990
+    np.random.seed(seed=seed)
+
+    pool = IntraDayVariablePool()
+
+    date_range = {"start": datetime.datetime(
+        2020, 1, 1), "end": datetime.datetime(2020, 1, 20)}
+
+    symbols = [var.symbol for var in pool.variables.values()]
+
+    env = TradingEnv(
+        symbols=list(pool.variables.keys()),
+        n_episode=5, libname="test", **date_range)
+
+    action = {sym: np.random.normal() for sym in env.symbols}
+    return env, action
+
+
+def test_env_call(env):
+    env, action = env
+    info = env.reset()
+    logger.info(info)
+    while True:
+        state = env.step(action)
+        logger.info(state)
+        if state["done"]:
+            break
+
+
+def test_trading_pnl(env):
+    env, action = env
+    px = env.data.loc[env.generator.seq]
+    logger.info("None")
+    raise

@@ -25,7 +25,7 @@ class TestEnvHandler(testing.AsyncHTTPTestCase):
         async def backtesting():
             act = {"answer": 2}
             history = []
-            async with testing.set_mode({"max_num_guess": 5}) as env:  # connect
+            async with testing.set_meta({"max_num_guess": 5}) as env:  # connect
                 info = await env.reset()  # this request initial dataset for you
                 logger.info(info)
                 while True:

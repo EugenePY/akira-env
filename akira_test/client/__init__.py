@@ -26,12 +26,19 @@ class BackTestingSession(object):
         if exc_type is None:
             logger.info("Back Test Complete")
             logger.info("=========== AKIRA-Testing END =========")
-            self.ws.write_message("cleanup")
+            self.ws.close(1000)
+
+    def send(self, dict_):
+        msg = json.dumps(dict_)
+        self.ws.write_message(msg)
+
+    def send_fn_call(self, fn, kwarg):
+        pass
 
     async def connect(self):
         logger.info("============= AKIRA-Testing ============")
         logger.info("trying to connect: {endpoint}. query={query}".format(
-            endpoint=self.endpoint, query=self.query))
+            endpoint=self.endpoint, query=self.meta))
         # retry times
         n = 0
         while True:
@@ -70,35 +77,9 @@ class BackTestingSession(object):
         logger.debug("Reset got: data={}".format(msg))
         return msg
 
-    def set_mode(self, query):
-        query_token = parse.urlencode({"data": json.dumps(query)})
-        self.query = query
-        self.endpoint = "ws://{host}:{port}/backtest/{env_id}?{query}".format(
-            host=self.host, port=self.port, env_id=self.env_id, 
-            query=query_token)
-
+    def set_meta(self, meta):
+        query_token = parse.urlencode({"data": json.dumps(meta)})
+        self.meta = meta
+        self.endpoint = \
+            f"ws://{self.host}:{self.port}/backtest/{self.env_id}?{query_token}"
         return self
-
-
-if __name__ == "__main__":
-    def test():
-        try:
-            testing = BackTestingSession(
-                host='localhost', port=3000, env_id="bmk")
-
-            async def backtesting():
-                act = {"answer": 1}
-                async with testing.set_mode(guess, mode="develop") as env:  # connect
-                    info = await env.reset()  # this request initial dataset for you
-                    logger.info(info)
-                    while True:
-                        msg = await env.step(act)
-                        logger.info(msg)
-                        if msg["done"]:
-                            break
-                    return info
-
-            info = asyncio.get_event_loop().run_until_complete(backtesting())
-        except KeyboardInterrupt as e:
-            print("KeyboardInterrupt")
-            sys.exit()

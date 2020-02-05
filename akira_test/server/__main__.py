@@ -8,15 +8,17 @@ import tornado.options
 import json
 from loguru import logger
 from tornado.options import define, options
-from .handlers import EnvTestHandler, EnvSpecHandler, IndexHandler
+from .handlers import EnvTestHandler, EnvDeployHandler, IndexHandler
 
 define("port", default=3000, help="run on the given port", type=int)
 
 
 class Application(tornado.web.Application):
     def __init__(self):
-        handlers = [(r"/backtest/(?P<env_id>.*)", EnvTestHandler),
-                    (r"/", IndexHandler)]
+        handlers = [
+            (r"/backtest/(?P<env_id>.*)", EnvTestHandler),
+            (r"/deploy/(?P<env_id>.*)/(?P<model_id>.*)", EnvDeployHandler),
+            (r"/", IndexHandler)]
         settings = dict(debug=True)
         tornado.web.Application.__init__(
             self, handlers, **settings)
