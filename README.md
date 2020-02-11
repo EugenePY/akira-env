@@ -1,8 +1,8 @@
 # AKIRA-TEST: Algo Testing & Deploy Framework
 
-1. Trading En
+1. Trading Enviroment
 
-# Deploy
+## Deploy
 
 What does api do?
 
@@ -14,10 +14,6 @@ Create connection between Database and API
 trading symbol
 trading record submit
 
-# Testing
+## Testing
 
 1. Enviroment, client side
-trading_time:
-    information cut-time
-
-execution price:

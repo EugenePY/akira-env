@@ -128,22 +128,31 @@ def env(arctic_testdb):
         n_episode=5, libname="test", **date_range)
 
     action = {sym: np.random.normal() for sym in env.symbols}
-    return env, action
-
-
-def test_env_call(env):
-    env, action = env
-    info = env.reset()
-    logger.info(info)
-    while True:
-        state = env.step(action)
-        logger.info(state)
-        if state["done"]:
-            break
+    return env
 
 
 def test_trading_pnl(env):
-    env, action = env
+    action = {s: 1 for s in env.symbols}
+    info = env.reset()
     px = env.data.loc[env.generator.seq]
-    logger.info("None")
-    raise
+    logger.info(info)
+    inv_ = 1
+
+    while True:
+
+        logger.info(env.generator.step)
+        timestep = env.timestep
+        state = env.step(action)
+        logger.info(env.episode_stack[timestep])
+        inv = {s: state[s]["inv"] for s in env.symbols}
+
+        for k, v in inv.items():
+            if state["done"]:
+                inv_ = 0  # house cleaning
+            assert v == inv_
+
+        inv_ += 1
+        if state["done"]:
+            break
+    out = env.generate_tearsheet().unstack(level=1)["price"]
+    assert all(out == px.xs("PX_OPEN", axis=1, level=1)[out.columns])

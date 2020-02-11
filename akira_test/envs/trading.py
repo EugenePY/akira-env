@@ -2,6 +2,7 @@ import os
 
 import marshmallow as ma
 import pandas as pd
+from loguru import logger
 from arctic import Arctic
 from arctic.date import DateRange
 import numpy as np
@@ -15,8 +16,9 @@ from . import collect_input_output
 
 class Indexer:
     idx_id = "base"
+    step = 0
 
-    def __init__(self, idx, n_episode):
+    def __init__(self, idx, n_episode, mode="test"):
         assert n_episode > 0
         self.idx = idx
         self.n_episode = n_episode
@@ -31,16 +33,23 @@ class Indexer:
         return val
 
     def reset(self):
-        start = np.random.choice(
-            range(len(self.idx)-self.n_episode))
-        self.seq = self.idx[start:start+self.n_episode]
-        self.step = 0
+        # random choice the stating point
+        if mode == "test":
+            start = np.random.choice(
+                range(len(self.idx)-self.n_episode))
+            self.seq = self.idx[start:start+self.n_episode]
+            self.step = 0
+        elif mode == "deploy":
+            pass
         return self.seq[self.step]
 
     def get_offset(self, offset):
         if offset < 0:
             raise ValueError("Offeset only allow" +
                              " positive Interger. Got {}.".format(offset))
+        if self.step - offset < 0:
+            return None
+
         return self.seq[self.step-offset]
 
     def last(self):
@@ -48,6 +57,8 @@ class Indexer:
 
 
 class StateStack(object):
+    """Record trading histroy
+    """
 
     def __init__(self, ids, columns):
         self.__id__ = ids
@@ -73,6 +84,39 @@ class StateStack(object):
                 out[k[1]] = v
         return out
 
+    def __str__(self):
+        return str(self.stack)
+
+
+class Datahandler(object):
+    data_cached = None
+    mongo_uri = os.environ.get("MONGO_URI", "localhost")
+    store = Arctic(mongo_uri)
+
+    def __init__(self, symbols, libname):
+        self.libname = libname
+
+    def fetch(self, start, end=None):
+        # fetch data from mongo server
+        date_range = DateRange(start=start, end=end)
+        data = {}
+        lib = self.store.get_library(self.libname)
+        for symbol in self.symbols:
+            data[symbol] = lib.read(
+                symbol, date_range=date_range).data
+        data = pd.concat(data, axis=1).fillna(method="ffill")
+
+        return data
+
+    def get(self, index, cols):
+        if index not in self.data_cached.index:
+            logger.info("Datetime Index={} not found".format(
+                index))
+            # update latest data
+            self.data_cached = self.data_cached.append(
+                self.fetch(index, None))  # fetch all afterward
+        return self.data_cached.loc[index, cols]
+
 
 class TradingEnvSchema(ma.Schema):
     variables = ma.fields.List(ma.fields.Str)
@@ -83,7 +127,20 @@ class TradingEnvSchema(ma.Schema):
     genertor = ma.fields.Str(nullable=True)
 
 
+class EnvRewarder(object):
+    # output signal, input signal
+    def dump(self):
+        pass
+
+
 class TradingEnv(BaseEnv):
+    """
+    TradingSimulator: 
+    Timestep: Each Trading Date.
+
+    Reset, initial date that your start to trade
+    step
+    """
     env_id = "trading"
     schema = TradingEnvSchema
 
@@ -92,11 +149,8 @@ class TradingEnv(BaseEnv):
         self.symbols = symbols
 
         # database
-        mongo_uri = os.environ.get("MONGO_URI", "localhost")
-        self.store = Arctic(mongo_uri)
-        self.libname = libname
-        date_range = DateRange(start=start, end=end)
-        self.data = self.fetch(date_range)
+        self.datahandler = Datahandler(symbols, libname)
+        self.datahandler.fetch(start)  # we query all latest data
 
         # prepare stacks
         self.episode_stack = StateStack(
@@ -104,13 +158,16 @@ class TradingEnv(BaseEnv):
                      "inv", "pnl", "return", "act", "mk2mkt_pnl"],
             ids=["timestep", "symbol"])
 
+        self.n_episode = n_episode
+
         if generator is None:
             generator = Indexer(self.data.index, n_episode=n_episode)
 
         else:
             if not issubclass(type(generator), Indexer):
-                raise ValueError("gernerator should be subclass of {}. Got {}.".format(
-                    type(Indexer), type(generator)))
+                raise ValueError("gernerator should be "
+                                 "subclass of {}. Got {}.".format(
+                                     type(Indexer), type(generator)))
 
         self.generator = generator
 
@@ -122,34 +179,51 @@ class TradingEnv(BaseEnv):
     def reset(self):
         self.generator.reset()
         self.episode_stack.reset()
+        entry = self.episode_stack[self.genertor.timestep]
+        entry["done"] = False
+        entry["info"] = {}
+        return entry
 
     def step(self, action, nan_check=False):
 
-        timestep = next(self.generator)
+        timestep = self.timestep
         timestep_last = self.generator.get_offset(offset=1)
-        out = {"done": False}
 
+        out = {"done": False, "info": {}}
+
+        # check terminal condtion
         if self.generator.last():
             # Terminal Condtion met.
             action = {}
+            # cleanup all position
             for sym in self.symbols:
                 entry_last = self.episode_stack.query(
                     tuple([timestep_last, sym]))
                 action[sym] = - entry_last["inv"]
             out["done"] = True
 
-        prices = self.data.loc[timestep].loc[(slice(None), "PX_OPEN")]
+        # check if the next date is settlement date
+        if self.generator.step == self.n_episode - 2:
+            out["info"] = {"status": "cleanup"}
+
+        prices = self.datahandler.get(
+            index=timestep, cols=[(slice(None), "PX_OPEN")])
+
         r = 0
+
         for symbol in self.symbols:
             price = prices[symbol]
             entry_last = self.episode_stack.query(
                 tuple([timestep_last, symbol]))
+
+            # check price
             if not pd.isnull(price):
                 # the px is see able
                 act = action.get(symbol, 0)
             else:
                 # the px is not seeable, offset the trade
                 act = 0
+
             # handle execution pnl and cost
             cost, pnl, _r, price, mk2mkt_pnl, inv = self._cost_and_position(
                 cost_last=entry_last["cost"],
@@ -168,9 +242,13 @@ class TradingEnv(BaseEnv):
             self.episode_stack.add(entry)
             out[symbol] = {"reward": _r,
                            "inv": entry["inv"]}
-
         out["reward"] = r
-        out["info"] = {}
+        # update state
+        try:
+            next(self.generator)
+        except IndexError:
+            logger.debug("End episode.")
+
         return out
 
     def _cost_and_position(self, cost_last, inv_last, price, act):
@@ -190,7 +268,7 @@ class TradingEnv(BaseEnv):
                 cost = price = price
             else:
                 # Action: Neutral
-                cost = price = 0.
+                cost = 0.
 
             inv = act
 
@@ -235,27 +313,17 @@ class TradingEnv(BaseEnv):
 
             if np.isclose(inv, 0):
                 # if today donot have position (Neutral)
-                mk2mkt_pnl = cost = price = 0.
+                mk2mkt_pnl = cost = 0.
 
         return cost, pnl, _r, price, mk2mkt_pnl, inv
 
     @property
-    def state(self):
-        return self.episode_stack.get_offset(offset=1)
+    def timestep(self):
+        return self.generator.get_offset(offset=0)
 
     @property
-    def state_last(self):
-        return self.episode_stack.get_offset(offset=2)
-
-    def fetch(self, date_range):
-        # fetch data from mongo server
-        data = {}
-        lib = self.store.get_library(self.libname)
-        for symbol in self.symbols:
-            data[symbol] = lib.read(
-                symbol, date_range=date_range).data
-        data = pd.concat(data, axis=1)
-        return data
+    def timestep_last(self):
+        return self.generator.get_offset(offset=1)
 
     @classmethod
     def serialize_env(cls, env):
@@ -264,3 +332,6 @@ class TradingEnv(BaseEnv):
     @classmethod
     def deserialize_env(cls, data):
         return cls(**data)
+
+    def generate_tearsheet(self):
+        return pd.DataFrame(self.episode_stack.stack).T

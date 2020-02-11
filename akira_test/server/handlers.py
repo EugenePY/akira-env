@@ -63,9 +63,13 @@ class EnvDeployHandler(EnvTestHandler):
     clients_space = {}
     plugin = PluginCollection
 
+    def dump_resource(self): # dump to database
+        pass
+
 
 class EnvSpecHandler(tornado.web.RequestHandler):
     def get(self, env_id):
+        # return action_space_id, indexer_id
         pass
 
 

@@ -7,6 +7,7 @@ import uuid
 import time
 import asyncio
 from urllib import parse
+import websocket
 
 
 class BackTestingSession(object):
@@ -31,9 +32,6 @@ class BackTestingSession(object):
     def send(self, dict_):
         msg = json.dumps(dict_)
         self.ws.write_message(msg)
-
-    def send_fn_call(self, fn, kwarg):
-        pass
 
     async def connect(self):
         logger.info("============= AKIRA-Testing ============")

@@ -1,4 +1,5 @@
-akira-data
+marshmallow
 nest_asyncio
 motor
 tornado
+loguru

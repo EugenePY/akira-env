@@ -26,6 +26,7 @@ class Application(tornado.web.Application):
 
 def main():
     tornado.options.parse_command_line()
+    logger.info(f"Starting websocket server @port={options.port}")
     app = Application()
     app.listen(options.port)
     tornado.ioloop.IOLoop.instance().start()
