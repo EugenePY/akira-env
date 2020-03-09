@@ -127,12 +127,6 @@ class TradingEnvSchema(ma.Schema):
     genertor = ma.fields.Str(nullable=True)
 
 
-class EnvRewarder(object):
-    # output signal, input signal
-    def dump(self):
-        pass
-
-
 class TradingEnv(BaseEnv):
     """
     TradingSimulator: 

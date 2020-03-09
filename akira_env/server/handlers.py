@@ -42,6 +42,7 @@ class EnvTestHandler(tornado.websocket.WebSocketHandler):
         fn = input_["fn"]
         kwargs = input_["args"]
         out = {}
+
         try:
             result = getattr(EnvTestHandler.clients_space[self]["env"],
                              fn)(**kwargs)

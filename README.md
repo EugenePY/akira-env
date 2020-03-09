@@ -2,7 +2,7 @@
 
 1. Trading Enviroment
 
-## Deploy
+## Live Trading
 
 What does api do?
 
@@ -14,6 +14,6 @@ Create connection between Database and API
 trading symbol
 trading record submit
 
-## Testing
+## Backtesting
 
 1. Enviroment, client side

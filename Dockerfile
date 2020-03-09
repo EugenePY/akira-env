@@ -11,4 +11,4 @@ WORKDIR ${AKIRA_TEST_HOME}
 COPY . ${AKIRA_TEST_HOME}
 RUN python setup.py develop
 
-ENTRYPOINT ["python", "-m", "akira_test.server"]
+ENTRYPOINT ["python", "-m", "akira_env.server"]
