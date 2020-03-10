@@ -15,5 +15,5 @@ setup(
     install_requires=requires,
     packages=find_packages(exclude='test'),
     dependency_links=[
-        "git+https://github.com/EugenePY/gym-kafka.git@master=gym-kafka"
+        "git+https://github.com/EugenePY/gym-kafka.git@master=gym-kafka"]
 )
