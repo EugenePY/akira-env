@@ -5,10 +5,12 @@ RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y git
 
-ENV AKIRA_TEST_HOME=/akira_test
+ENV AKIRA_ENV_HOME=/akira_test
+WORKDIR ${AKIRA_ENV_HOME}
+ADD requirements.txt .
+RUN pip install -r requirements.txt
 
-WORKDIR ${AKIRA_TEST_HOME}
-COPY . ${AKIRA_TEST_HOME}
+COPY . ${AKIRA_ENV_HOME}
 RUN python setup.py develop
 
 ENTRYPOINT ["python", "-m", "akira_env.server"]

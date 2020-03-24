@@ -11,7 +11,7 @@ from ..models.actions import BaseActionSpace
 from ..models.env import BaseEnv
 from ..models.state import BaseState
 from ..serialization import Model
-from . import collect_input_output
+from . import collect_input_out
 
 
 class Indexer:

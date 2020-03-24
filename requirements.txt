@@ -1,7 +1,7 @@
 marshmallow
 nest_asyncio
-motor
 tornado
 loguru
 autobahn
-kafka-python
+arctic
+faust

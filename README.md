@@ -1,19 +1,39 @@
-# AKIRA-TEST: Algo Testing & Deploy Framework
+# AKIRA-ENV: Live Trading Framework
 
-1. Trading Enviroment
+## Trading Enviroment
 
-## Live Trading
+1. Realtime Data
+   - Update Frequently
 
-What does api do?
+Enviorment and Agnet Archeteture 
 
-1. Record Trading Record, and provide CRUD UI.
-Register a trading time
-Create connection between Database and API 
+Reward Topic
+Observation Topic
+Action Topic
 
-2. Model Registeration
-trading symbol
-trading record submit
+Partion agent and enviorment 
+Partitioner
+key = {env_id}.{agent_id}
+msg = {"schema": None, "many":, "cls":, "body":}
 
-## Backtesting
 
-1. Enviroment, client side
+### Env
+
+1. Enviroment TOPIC
+
+2. Filter
+
+### Timestamp Frequency Table
+
+Timestampe alignment
+
+### Archteture
+
+Envirment defines, Trading Rules, Stoploss, Trading instrument
+
+#### Trading Position Management
+
+#### Kafka based Task Quque
+
+1. Simple & Clean
+2. Scalable
