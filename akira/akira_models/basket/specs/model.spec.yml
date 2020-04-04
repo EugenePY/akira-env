@@ -1,0 +1,10 @@
+model_spec:
+    target:
+        - USDTWD BGN Curncy
+    portfolio: 
+        - USDKRW BGN Curncy 
+        - USDSGD BGN Curncy
+        - EURUSD BGN Curncy
+        - AUDUSD BGN Curncy
+        - GBPUSD BGN Curncy
+method: OLS

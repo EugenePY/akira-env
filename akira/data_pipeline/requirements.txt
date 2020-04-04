@@ -1,0 +1,15 @@
+click
+loguru
+arctic
+requests
+nest_asyncio
+beautifulsoup4
+lxml
+marshmallow_mongoengine
+pyyaml
+pytest
+scrapy
+autobahn
+faust
+faust[rocksdb]
+python-schema-registry-client

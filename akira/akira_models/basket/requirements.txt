@@ -1,0 +1,7 @@
+rpy2
+click
+tqdm
+statsmodels
+pyyaml
+dill
+faust

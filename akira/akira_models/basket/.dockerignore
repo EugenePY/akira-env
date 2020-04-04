@@ -1,0 +1,9 @@
+Dockerfile
+Makefile
+*.md
+*.pyc
+notebooks
+*.egg-info
+test/data
+test/*.csv
+.pytest_cache

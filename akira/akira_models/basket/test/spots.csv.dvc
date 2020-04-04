@@ -1,0 +1,7 @@
+md5: ebd57dfbb826b8191f38c906662599fe
+outs:
+- md5: 692ed85f5f4b6218f430fca17f6e1d98
+  path: spots.csv
+  cache: true
+  metric: false
+  persist: false

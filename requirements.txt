@@ -1,7 +1,0 @@
-marshmallow
-nest_asyncio
-tornado
-loguru
-autobahn
-arctic
-faust

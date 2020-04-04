@@ -1,0 +1,44 @@
+TARGET="USDTWD BGN Curncy"
+DATASUFIX=.csv
+BUILDDIR=./build.model
+
+FXRATEFILE=./test/spots.csv
+RETURN_FILE=${BUILDDIR}/monthly.return.csv
+MODELS= bmk factor mv tvols
+
+START=20000101
+END=20190101
+
+${BUILDDIR}:
+	mkdir ${BUILDDIR}
+
+${RETURN_FILE}: ${BUILDDIR} ${FXRATEFILE} 
+	python3 -m baskets.datapipeline open -i test/spots.csv --header 0 --header 1 \
+        columns-selector -c PX_MID -l 1 dropna resample-return --freq M dump -o ${RETURN_FILE} 
+
+${BUILDDIR}/bmk.model.pkl: ${RETURN_FILE}
+	python3 -m baskets make-model --spec model_specs/basket.model.yml \
+        --model_id bmk train --input ${RETURN_FILE} -o ${BUILDDIR}/bmk.model.pkl
+
+train_bmk: ${BUILDDIR}/bmk.model.pkl
+	
+train_all: factor_model, bmk_tvols
+	python3 -m basket --model_file @.model.o --inputfile train -o model.trained.pkl
+
+
+bmk.model.report.csv: bmk.model.pkl
+
+notebook_report: notebooks/report.ipynb build/bmk.model.report.csv
+## using docker image
+
+benchmarking: notebooks/report.ipynb build/bmk.model.report.csv
+## using docker image: akira-test
+
+test:
+	pytest 
+
+deploy:
+
+cleanup:
+	rm -rf *.model.pkl
+	rm -rf ${BUILDDIR} 

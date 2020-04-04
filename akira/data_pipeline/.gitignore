@@ -1,0 +1,9 @@
+grafana_data/
+mongodata/
+
+*.egg-info
+.vscode/
+*.pyc
+
+# pytset
+.pytset_cache
