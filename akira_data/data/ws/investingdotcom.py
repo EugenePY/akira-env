@@ -7,6 +7,8 @@ import kafka
 import numpy as np
 from autobahn.twisted.websocket import (WebSocketClientFactory,
                                         WebSocketClientProtocol, connectWS)
+from twisted.internet.protocol import ReconnectingClientFactory
+
 from kafka import KafkaProducer
 from loguru import logger
 import datetime
@@ -17,10 +19,13 @@ def output_producer(f):
         out = f(self, *arg, **kwargs)
         if out is not None:
             out = {"symbol": f"FEED:pid-{out['pid']}",
-                   "data": out, "index": datetime.datetime.utcfromtimestamp(
-                       out["timestamp"])}
-            self.producer.send(self.topic, out)
-            logger.debug(f"Kafka-producer:topic={self.topic}:{out}")
+                   "data": out, "index":  str(
+                       datetime.datetime.utcfromtimestamp(
+                           out["timestamp"])), "metadata": None}
+
+            if hasattr(self, "producer"):
+                self.producer.send(self.topic, out)
+                logger.debug(f"Kafka-producer:topic={self.topic}:{out}")
         return out
     return onMessage
 
@@ -41,6 +46,7 @@ class InvestingdotcomProtocol(WebSocketClientProtocol):
     heartbeat = {"_event": "heartbeat", "data": "h"}
     subscribte_message = {"_event": "bulk-subscribe", "tzID": "8",
                           "message": "pid-1:%%pid-2:"}
+    timeout = None
 
     @classmethod
     def make_subids(cls, ids):
@@ -76,6 +82,11 @@ class InvestingdotcomProtocol(WebSocketClientProtocol):
         logger.info("Kafka-Connected")
         return cls
 
+    @classmethod
+    def set_timeout(cls, timestamp):
+        cls.timeout = timestamp
+        return cls
+
     def onConnect(self, request):
         logger.info("Client connecting: {}".format(request.peer))
 
@@ -93,15 +104,28 @@ class InvestingdotcomProtocol(WebSocketClientProtocol):
 
     @output_producer
     def onMessage(self, msg, binary):
+        self.log.debug(
+            "WebSocketProtocol.onMessage(payload=<{payload_len} bytes)>, isBinary={isBinary}",
+            payload_len=(len(msg) if msg else 0),
+            isBinary=binary,
+        )
         msg = str(msg.decode("utf-8"))[1:]
         if len(msg) > 0:
+
+            logger.debug(f"receive:{msg}")
             obj = json.loads(msg)
             data = json.loads(obj[0]).get('message', None)
 
             if data is not None:
                 result = json.loads(data.split('::')[1])
-                logger.debug(f"receive:{result}")
                 return result
+            elif data == 3000:
+                self.onClose(wasClean=False,
+                             code=obj[0], reason=obj[1])
+        if self.timeout is not None:
+            if self.timeout < int(time.time()):
+                self.log.info("Timeout closing connection by User")
+                self.sendClose()
 
     def onClose(self, wasClean, code, reason):
         logger.info("WebSocket connection closed: {}".format(reason))
@@ -134,7 +158,7 @@ if __name__ == "__main__":
         url = f"wss://stream{server_num}.forexpros.com/echo/{numb}/{randstr}/websocket"
         factory = WebSocketClientFactory(url)   # , #headers=headers)
         factory.setProtocolOptions(autoPingInterval=1)
-        factory.protocol = InvestingdotcomProtocol
+        factory.protocol = InvestingdotcomProtocol.make_subids([1, 2])  # .set_timeout(100)
         connectWS(factory)
         reactor.run()
     test()

@@ -1,39 +1,38 @@
-# AKIRA-ENV: Live Trading Framework
+# AKIRA: A Life Long Quantitative Asset Management Platform
 
-## Trading Enviroment
+## Feature
 
 1. Realtime Data
-   - Update Frequently
+   - Stream Proccessing 
+   - Intraday Execution Bot
 
-Enviorment and Agnet Archeteture 
+2. End of Day API update
 
-Reward Topic
-Observation Topic
-Action Topic
+3. Easy to BackTesting
+   - Aim to backtest the whole system, including intraday.
+   - Easy to add Stress test.
+   - Versioning Your Data.
 
-Partion agent and enviorment 
-Partitioner
-key = {env_id}.{agent_id}
-msg = {"schema": None, "many":, "cls":, "body":}
+   Problem of Backtesting.
+      - Noisy
 
+4. Short-Term Investment Strategy
+   - Information from Option
+   - Economic Event
 
-### Env
+5. Long-Term Investment Strategy
+   - Smart Beta
+   - Factor Model 
+   - Statiscal Arbitrage
+   - Intertemporal Optimization
+   - Cross Asset Management
 
-1. Enviroment TOPIC
+6. Scalable.
+   - Using k8s scaling is easy.
 
-2. Filter
+7. Machine Learning & Economic Decision
 
-### Timestamp Frequency Table
+8. Microservice strucutre
+   - Deploying Different Agent in different enviroment is easy.
 
-Timestampe alignment
-
-### Archteture
-
-Envirment defines, Trading Rules, Stoploss, Trading instrument
-
-#### Trading Position Management
-
-#### Kafka based Task Quque
-
-1. Simple & Clean
-2. Scalable
+9. Monitoring

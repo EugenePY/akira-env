@@ -1,26 +1,17 @@
-SERVICES = data-pipeline baskets position-manager
-SERVICE_PATH = data_pipeline akira_models/baskets position_manager
+SERVICES = data-pipeline position-manager
 
+TOP = akira-env_
+VOLUMES = kafka_data mongodb
 
-compile:
-	docker build --target builder \
-		--cache-from=eugenepy/$@:builder \
-		--tag eugenepy/$@:builder .
+build_all: ${SERVICES}
 
-.PHONY: compile 
+${SERVICES}:
+	docker-compose -f docker-compose.yml build $@
 
-
-build_runtime: compile
-	$(foreach var,$(SERVICES),./a.out $(var);)
-	docker build --target runtime \
-		--cache-from=${IMAGENAME}:latest \
-		--tag ${IMAGENAME}:latest .
-
-.PHONY: build_runtime
-
-staging_up: all
-	docker-compose up -d
+staging_up:
+	docker-compose -f docker-compose.yml up -d
 
 staging_down:
 	docker-compose down
 	docker volume prune
+	

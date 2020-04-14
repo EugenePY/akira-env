@@ -168,12 +168,14 @@ class InvestingDotComAPI(API):
                 elif status == "no_data":
                     break
 
-                q_start, q_end = self._batch_query_state(quote_stack)
-                logger.info("start:{}, end:{}".format(q_end, end))
-                if q_end >= end - BDay():
+                q_start, q_end = self._batch_query_state(quote)
+                start = q_end
+
+                logger.info("response=start:{}, end:{}".format(q_start, q_end))
+                logger.info("start:{}, end:{}".format(start, end))
+                # if q_end >= end - BDay() - delta:
+                if q_start >= start:
                     break
-                else:
-                    start = q_end
             return self._to_dataframe(quote_stack)
 
     def _submit_request(self, sess, asset_id, start, end, resolution):

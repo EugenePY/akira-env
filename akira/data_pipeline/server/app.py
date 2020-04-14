@@ -43,16 +43,18 @@ class Ticker(faust.Record, coerce=True, date_parser=tz_parser):
 
 
 tickdata_topic = app.topic(
-    "ticker-topic", value_type=Ticker)  # ticker data only
+    os.environ.get("INVESTINGDOT_COM_TOPIC", "investing-dot-topic"), 
+    value_type=Ticker)  # ticker data only
 
 
 async def forward_to_execute_tick(ticker):
     # forward excution data to tick data topic
-    if "FEED" in tick.symbol:
-        tick = Tick(timestamp=ticker.index, 
+    if "FEED" in ticker.symbol:
+        tick = Tick(timestamp=int(ticker.index.timestamp()),
                     ask=float(ticker.data["ask"]),
                     bid=float(ticker.data["bid"]),
                     symbol=ticker.symbol)
+        logger.info(f"fowrad to ticker topic={tick}")
         await ticker_topic.send(key=ticker.symbol, value=tick)
 
 
@@ -60,20 +62,21 @@ async def forward_to_execute_tick(ticker):
 async def proccess_tick_data(tickdata):
     # ticker store
     async for tick in tickdata.group_by(Ticker.symbol):
-        tick.index = tick.index.replace(tzinfo=get_localzone())
         logger.info(f"ticker-proccess got: {tick.asdict()}")
         data = tick.data
-        data["index"] = tick.index
+        data["index"] = tick.index.replace(tzinfo=get_localzone())
         ticker_lib.write(tick.symbol, [data])
 
         if tick.metadata is not None:
             logger.info(f"metadata-proccess got: {metadata.asdict()}")
             lib = store["akira.metadata"]
             lib.append(tick.symbol, tick.metadata,
-                       start_time=tick.index)
+                       start_time=tick.index.replace(tzinfo=get_localzone()))
+
 
         # foward FEED data to tick proccess
-        await forward_to_execute_tick(ticker)
+        await forward_to_execute_tick(tick)
+        yield tick
 
 
 class DataTask(faust.Record, coerce=True, date_parser=tz_parser):
@@ -95,9 +98,9 @@ async def create_data_task(tasks):
         await calculated_difference.send(value=task)
 
 
-@app.agent(api_call_topic)
+@app.agent(api_call_topic, concurrency=10)
 async def do_api_call_task(task_stream):
-    async for task in task_stream.group_by(DataTask.api_id):
+    async for task in task_stream:
         logger.info(f"received batch-ticker-job={task}")
         api = api_map.get(task.api_id, None)
 
@@ -112,9 +115,11 @@ async def do_api_call_task(task_stream):
                 data = data.reset_index().to_dict("record")
             try:
                 ticker_lib.write(task.symbol, data)
+                yield task
 
             except arctic.exceptions.OverlappingDataException as e:
                 print(e)
+
         else:
             print(f"api={task.api_id} not exists.")
 
@@ -126,10 +131,10 @@ async def calculated_difference(tasks):
         try:
             task.end = max(lib.max_date(
                            task.symbol), task.end)
-            task.start = max(lib.min_date(task.symbol),
-                             task.start)
+            task.start = lib.max_date(task.symbol)
+            print(task)
         except arctic.exceptions.NoDataFoundException as e:
-            pass
+            print(e)
         await do_api_call_task.send(value=task)
 
 
@@ -141,8 +146,8 @@ async def on_start():
     #os.environ.get("POOLS", "ECO, INTRADAY")
     # IntraDayVariablePool]  # SpotUniverse, REER]
     pools = [EcoEventVariablePool, IntraDayVariablePool,
-             IntraDayVariablePool]
-    start = datetime.datetime(2000, 1, 1)
+             InvestingDotVariablePool]
+    start = datetime.datetime(2020, 1, 1)
     end = datetime.datetime.today()
 
     for pool in pools:
@@ -150,7 +155,7 @@ async def on_start():
         api_map[pool_id] = pool()
         logger.info(f"Loading Variable Pools={pool_id}")
 
-    for pool in pools:
+    for pool_id in api_map.keys():
         for variable in api_map[pool_id].variables.values():
             task = DataTask(
                 symbol=variable.symbol,

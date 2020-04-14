@@ -36,6 +36,10 @@ class InvestingDotVariablePool(VariablePool):
 
         return variables
 
+    def get(self, symbol, start, end):
+        data = self.conn.get(symbol.split(" ")[0], start, end, resolution="1D")
+        return data
+
     def get_batch(self, symbols, start, end):
         # this sould return {symbol: data}
         req_arg_symbol = {symbol.split(" ")[0]: symbol for symbol in symbols}

@@ -1,4 +1,4 @@
-version: '3'
+version: '3.4'
 services: 
     zookeeper:
         image: wurstmeister/zookeeper
@@ -18,6 +18,10 @@ services:
             KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
             KAFKA_LISTENERS: PLAINTEXT://:9093,PLAINTEXT_HOST://:9092
             KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+        volumes: 
+            - type: volume
+              source: kafka_data
+              target: /kafka
 
     mongo: # arctic 
         image: mongo
@@ -26,6 +30,10 @@ services:
             - MONGO_INITDB_ROOT_PASSWORD=akira_data
         ports:
             - 27017:27017
+        volumes: 
+            - type: volume
+              source: mongo_data
+              target: /data/db
 
     quote-producer:
         image: eugenepy/data-pipeline:latest
@@ -35,12 +43,20 @@ services:
         environment:
             - MONGODB_URI=mongodb://akira_data:akira_data@mongo:27017
             - KAFKA_BOOSTRAPHOST=kafka:9093
+            - INVESTINGDOT_COM_TOPIC=investingdotcom
         command: "python akira/data_pipeline/server/run_websocket.py 1 2 --max_retry=-1" # streaming task
         restart: on-failure
 
     
     data-pipeline:
         image: eugenepy/data-pipeline:latest 
+        build:
+            context: .
+            target: runtime
+            dockerfile: akira/data_pipeline/Dockerfile
+            args:
+                - REQUIREMENTS_PATH=akira/data_pipeline
+
         depends_on:
             - quote-producer
         environment:
@@ -48,29 +64,55 @@ services:
             - MONGODB_URI=mongodb://akira_data:akira_data@mongo:27017
             - MODEL_TOPIC=model_topic
             - INVESTINGDOT_COM_TOPIC=investingdotcom
+            - TICK_DATA_TOPIC=tick-topic
         command: "python akira/data_pipeline/server/app.py worker -l info"
         restart: on-failure
+        deploy:
+            mode: replicated
+            replicas: 6
 
-    #position-manger: # in charge of testing, and order management. 
-    #    image: eugenepy/position-manager:latest
-    #    environment:
-    #        - KAFKA_BOOSTRAPHOST=kafka:9092
-    #        - MODEL_TOPIC=model_topic
-    #        - ORDER_TOPIC=orders 
-    #        - MONGODB_URI=${MONGODB_URI}
-    #    restart: on-failure
+    position-manager: # in charge of testing, and order management. 
+        image: eugenepy/position-manager:latest
 
-   
-    #basket: # provide basket functionality. 
-    #    image: eugenepy/basket:latest 
-    #    build: .
-    #    depends_on:
-    #        - akira_env
-    #        - akira_data
+        build:
+            context: .
+            target: runtime
+            dockerfile: akira/position_manager/Dockerfile
+            args:
+                - REQUIREMENTS_PATH=akira/position_manager
+        depends_on: 
+            - kafka
+        environment:
+            - KAFKA_BOOSTRAPHOST=kafka:9093
+            - MODEL_TOPIC=model_topic
+            - ORDER_TOPIC=orders 
+            - TICK_DATA_TOPIC=tick-topic
+            - MONGODB_URI=mongodb://akira_data:akira_data@mongo:27017
+        command: "python akira/position_manager/account_server.py worker -l info"
+        restart: on-failure
+    
+    order-exec: # price execution 
+        image: eugenepy/position-manager:latest
+        build:
+            context: .
+            target: runtime
+            dockerfile: akira/position_manager/Dockerfile
+            args:
+                - REQUIREMENTS_PATH=akira/position_manager
+        depends_on: 
+            - position-manager
+        environment:
+            - KAFKA_BOOSTRAPHOST=kafka:9093
+            - MODEL_TOPIC=model_topic
+            - ORDER_TOPIC=orders 
+            - TICK_DATA_TOPIC=tick-topic
+            - MONGODB_URI=mongodb://akira_data:akira_data@mongo:27017
+        command: "python akira/position_manager/execution.py worker -l info"
+        restart: on-failure
 
-    #    environment:
-    #        - DATA_TOPIC=${INVESTINGDOT_COM_TOPIC}
-    #        - MODEL_TOPIC=${MODEL_TOPIC}
-    #        - TASK_TOPIC=${TASK_QUQUE_TOPIC} 
-    #        - ORDER_TOPIC=${ORDER_TOPIC}
-    #        - MONGO_URI=${MONGO_URI}
+
+volumes:
+    kafka_data:
+        driver: local
+    mongo_data:
+        driver: local

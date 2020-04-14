@@ -8,11 +8,12 @@ from typing import Mapping
 from collections import defaultdict
 from arctic import Arctic, TICK_STORE
 from arctic.date import mktz
-from position_manager.models import Order
+from akira.position_manager.models import Order
 
 from faust.livecheck import Case, Signal
 
 app = faust.App("akira-env-position-manager",
+                broker=f"kafka://{os.environ.get('KAFKA_BOOSTRAPHOST', 'localhost:9092')}",
                 origin='position-manager.livecheck')
 
 store = Arctic(os.environ.get("MONGODB_URI", "localhost:27017"))
@@ -20,11 +21,9 @@ libname = os.environ.get("ORDER_LIBNAME", "akira-env.order")
 
 if store.library_exists(libname):
     lib = store[libname]
-
 else:
     lib = store.initialize_library(
         libname, lib_type=TICK_STORE)
-
 
 
 execution_topic = app.topic('order-execution', value_type=Order)

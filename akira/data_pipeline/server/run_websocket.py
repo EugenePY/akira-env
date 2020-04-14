@@ -1,6 +1,7 @@
 import ssl
 import sys
 import uuid
+import os
 
 import numpy as np
 import click
@@ -21,6 +22,18 @@ def run_ws(listenid, kafka_host, max_retry):
     from twisted.python import log
     from autobahn.twisted.websocket import (WebSocketClientProtocol,
                                             WebSocketClientFactory, connectWS)
+    from twisted.internet.protocol import ReconnectingClientFactory
+
+    class WsReconnectClientFactory(WebSocketClientFactory,
+                                   ReconnectingClientFactory):
+
+        def clientConnectionFailed(self, connector, reason):
+            print(f"Client connection failed:{reason} .. retrying ..")
+            self.retry(connector)
+
+        def clientConnectionLost(self, connector, reason):
+            print(f"Client connection lost:{reason} .. retrying ..")
+            self.retry(connector)
 
     log.startLogging(sys.stdout)
     numb = np.random.randint(0, 1000)
@@ -29,14 +42,17 @@ def run_ws(listenid, kafka_host, max_retry):
 
     url = f"wss://stream{server_num}.forexpros.com/echo/{numb}/{randstr}/websocket"
 
-    factory = WebSocketClientFactory(url)   # , #headers=headers)
+    factory = WsReconnectClientFactory(url)   # , #headers=headers)
     factory.setProtocolOptions(autoPingInterval=10)
     factory.protocol = InvestingdotcomProtocol.make_subids(listenid)
+
     if len(kafka_host) > 0:
         logger.info("Using Kafka-Backend")
         factory.protocol.produce_to_kafka(
-            topic="ticker-topic", max_retry=max_retry,
+            topic=os.environ.get("INVESTINGDOT_COM_TOPIC", "ticker-topic"), 
+            max_retry=max_retry,
             bootstrap_servers=kafka_host)
+
     connectWS(factory)
     reactor.run()
 

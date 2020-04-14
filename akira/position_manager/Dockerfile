@@ -8,8 +8,12 @@ RUN apt-get update \
 
 # install dependency
 ARG POSITION_MANGER=/position_manager
+ARG REQUIREMENTS_PATH=.
+
 WORKDIR ${POSITION_MANGER}
-ADD position_manager/requirements.txt .
+ADD ${REQUIREMENTS_PATH}/requirements.txt .
 RUN pip install -r requirements.txt
 
 # cleanup
+COPY . ${POSITION_MANGER}
+RUN python setup.py develop

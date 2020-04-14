@@ -2,8 +2,15 @@ import faust
 import datetime
 from faust.models import FieldDescriptor
 from faust.exceptions import ValidationError
-from typing import List, Any, Iterable
+from typing import List, Any, Iterable, Mapping, Optional
 from uuid import UUID
+from tzlocal import get_localzone
+from dateutil.parser import parse as parse_date
+
+
+def tz_parser(*args, default_tzinfo=get_localzone(), **kwargs):
+    dt = parse_date(*args, **kwargs)
+    return dt.replace(tzinfo=dt.tzinfo or default_tzinfo)
 
 
 class ChoiceField(FieldDescriptor[str]):
@@ -22,12 +29,22 @@ class ChoiceField(FieldDescriptor[str]):
 
 
 class ExecutedPrice(faust.Record):
-    timestamp: datetime.datetime
+    window_start: datetime.datetime
+    window_end: datetime.datetime
     symbol: str
     tick_count: int
     execute_px: float
-    time_zone: ChoiceField(["ASIA", "LONDON", "NEW_YORK"])
+    median: float
+    std: float
+    avg_spread: float
     method: ChoiceField(["MEAN"])
+
+
+class CandleStick(faust.Record):
+    px_last: float
+    px_open: float
+    px_high: float
+    px_low: float
 
 
 class Tick(faust.Record):
@@ -37,21 +54,23 @@ class Tick(faust.Record):
     bid: float
 
 
-class Order(faust.Record):
+class Order(faust.Record, coerce=True):
 
     SIDE_SELL = 'LONG'
     SIDE_BUY = 'SHORT'
 
-    id: UUID 
+    id: UUID
     model_id: str
     side: ChoiceField([SIDE_SELL, SIDE_BUY])
-    order_type:  ChoiceField(["MEAN"])
+    agent_type:  ChoiceField(["MEAN"], default="MEAN")
     symbol: str
-    side: str
     amount: float
-    price: ExecutedPrice = None
 
+    # Default Value
+    exec_price: ExecutedPrice = None
+    timestmap: datetime.datetime = datetime.datetime.now()
+    status: ChoiceField(["SUCCESS", "FAILED"]) = None
+    msg: Mapping[str, str] = None
     # paper orders are not executed.
     paper_trade: bool = False
-
     testing: bool = False
